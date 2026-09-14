@@ -1,0 +1,41 @@
+name: Spot Ecosystem CI
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  build-and-test:
+    name: Backend CI (.NET 10 + Spatial Tests)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore Dependencies
+      run: dotnet restore backend/Spot.slnx
+
+    - name: Build Backend Solution
+      run: dotnet build backend/Spot.slnx --no-restore --configuration Release
+
+    - name: Run Spatial & Integration Unit Tests
+      run: dotnet test backend/tests/Spot.Tests/Spot.Tests.csproj --no-build --configuration Release --verbosity normal
+
+  validate-docker:
+    name: Validate Docker Compose Configuration
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Validate Compose File
+      run: docker compose -f docker/docker-compose.yml config

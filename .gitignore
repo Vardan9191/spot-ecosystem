@@ -1,0 +1,36 @@
+# Visual Studio / .NET
+bin/
+obj/
+.vs/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.dbmdl
+*.sln.docstates
+[Dd]ebug/
+[Rr]elease/
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub/
+build/
+*.lock
+
+# Docker & Databases
+postgres_data/
+redis_data/
+*.rdb
+
+# Operating System
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*~

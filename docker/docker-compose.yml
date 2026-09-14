@@ -1,0 +1,39 @@
+services:
+  postgres-postgis:
+    image: postgis/postgis:16-3.4
+    container_name: spot-postgres-postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: spot_db
+      POSTGRES_USER: spot_admin
+      POSTGRES_PASSWORD: spot_secret_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_spatial_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spot_admin -d spot_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    container_name: spot-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_cache_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_spatial_data:
+    name: spot_postgres_spatial_data
+  redis_cache_data:
+    name: spot_redis_cache_data
