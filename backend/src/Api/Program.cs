@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Spot.Infrastructure.Persistence;
 using Spot.Infrastructure.Repositories;
+using Spot.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,14 +49,18 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Add SignalR for real-time spatial streaming
+builder.Services.AddSignalR();
+
 // Enable CORS for mobile & web clients
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.SetIsOriginAllowed(_ => true)
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -71,6 +76,7 @@ if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<LocationHub>("/hubs/location");
 
 // Health Check Endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTimeOffset.UtcNow }));

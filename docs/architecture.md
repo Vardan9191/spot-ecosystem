@@ -69,3 +69,12 @@ Mobile battery conservation is managed through three primary strategies:
 ### Store Reviews
 - `GET /api/v1/stores/{storeId}/reviews`: Retrieves review summary (Average overall, service, and quality ratings).
 - `POST /api/v1/stores/{storeId}/reviews`: Submits a customer review with 3 discrete 1-5 ratings.
+
+### Real-Time Spatial SignalR Hub (`/hubs/location`)
+- `SendLocation(double lat, double lng, double radiusMeters = 1500, string? category = null)`:
+  - Caller receives `ReceiveNearbyStores(List<StoreDto>)` ordered by distance.
+  - Caller receives `ReceiveGeofenceAlert(GeofenceAlertNotificationDto)` when entering immediate store radius.
+- `JoinStoreZone(string storeId)`: Subscribes client connection to targeted store deal group.
+- `LeaveStoreZone(string storeId)`: Unsubscribes client from store group.
+- `BroadcastStoreDeal(string storeId, string title, string message)`: Broadcasts real-time deal alerts to users in the store zone.
+

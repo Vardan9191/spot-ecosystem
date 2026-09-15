@@ -74,6 +74,7 @@ cd src/Api
 dotnet run
 ```
 Swagger UI: `http://localhost:5000/swagger`
+SignalR Endpoint: `http://localhost:5000/hubs/location`
 
 ### 3. Mobile Հավելված (Flutter)
 ```bash
@@ -93,7 +94,7 @@ flutter run
   - [x] 1.5կմ շառավղով մոտակա խանութների ավտոմատ թեստավորում
   - [x] Flutter Core (Location, Geofencing, 4h Cooldown, Offline Store)
 - [ ] **Sprint 2: Real-Time Sync & Media Streaming**
-  - [ ] WebSockets / SignalR իրական ժամանակում գտնվելու վայրի սինխրոնիզացիա
+  - [x] WebSockets / SignalR իրական ժամանակում գտնվելու վայրի սինխրոնիզացիա (`LocationHub`)
   - [ ] Cloud Storage ինտեգրացիա խանութների Shorts/Stories վիդեոների համար
 - [ ] **Sprint 3: Merchant Dashboard & Geofence Campaign Analytics**
   - [ ] Վաճառողների կառավարման վահանակ (Web Dashboard)

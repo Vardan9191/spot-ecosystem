@@ -83,7 +83,7 @@ class GeofenceManager {
   }
 
   void clearAllRegions() {
-    _activeRegions.clear;
+    _activeRegions.clear();
     _regionStates.clear();
   }
 
