@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'core/cooldown/cooldown_manager.dart';
+import 'core/geofence/background_geofence_service.dart';
+import 'core/geofence/battery_optimizer.dart';
 import 'core/geofence/geofence_manager.dart';
 import 'core/location/location_service.dart';
 import 'core/notifications/notification_service.dart';
@@ -17,10 +19,18 @@ void main() async {
   final cooldownManager = CooldownManager();
   final notificationService = NotificationService();
   final taskStore = OfflineTaskStore();
+  final batteryOptimizer = BatteryOptimizer();
 
   await cooldownManager.init();
   await notificationService.init();
   await taskStore.init();
+
+  final backgroundGeofenceService = BackgroundGeofenceService(
+    cooldownManager: cooldownManager,
+    notificationService: notificationService,
+    optimizer: batteryOptimizer,
+  );
+  await backgroundGeofenceService.initialize();
 
   final geofenceManager = GeofenceManager(
     locationService: locationService,
