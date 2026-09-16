@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Spot.Infrastructure.Persistence;
 using Spot.Infrastructure.Repositories;
 using Spot.Infrastructure.Storage;
+using Spot.Infrastructure.Cache;
 using Spot.Api.Hubs;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +35,28 @@ builder.Services.AddDbContext<SpotDbContext>(options =>
     }
 });
 
-// Dependency Injection for Repositories
+// Dependency Injection for Repositories & Services
+builder.Services.AddSingleton<ISpatialCacheService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<RedisSpatialCacheService>>();
+    var redisConn = builder.Configuration.GetConnectionString("Redis");
+    IConnectionMultiplexer? redis = null;
+    if (!string.IsNullOrWhiteSpace(redisConn))
+    {
+        try
+        {
+            var config = ConfigurationOptions.Parse(redisConn);
+            config.AbortOnConnectFail = false;
+            config.ConnectTimeout = 1500;
+            redis = ConnectionMultiplexer.Connect(config);
+        }
+        catch
+        {
+            redis = null;
+        }
+    }
+    return new RedisSpatialCacheService(redis, logger);
+});
 builder.Services.AddScoped<IStoreRepository, StoreRepository>();
 builder.Services.AddScoped<ITaskListRepository, TaskListRepository>();
 builder.Services.AddScoped<IStoreReviewRepository, StoreReviewRepository>();

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Spot.Domain.Common;
 using Spot.Domain.Entities;
+using Spot.Infrastructure.Cache;
 using Spot.Infrastructure.Persistence;
 
 namespace Spot.Infrastructure.Repositories;
@@ -9,10 +10,12 @@ public class StoreRepository : IStoreRepository
 {
     private const double MetersPerDegreeLat = 111320.0;
     private readonly SpotDbContext _context;
+    private readonly ISpatialCacheService? _cacheService;
 
-    public StoreRepository(SpotDbContext context)
+    public StoreRepository(SpotDbContext context, ISpatialCacheService? cacheService = null)
     {
         _context = context;
+        _cacheService = cacheService;
     }
 
     public async Task<List<NearbyStoreResult>> GetNearbyStoresAsync(
@@ -22,6 +25,38 @@ public class StoreRepository : IStoreRepository
         string? categorySlug = null, 
         CancellationToken ct = default)
     {
+        // 1. First Tier: Check Redis Geospatial Index (< 1ms lookup)
+        if (_cacheService != null && _cacheService.IsConnected)
+        {
+            var cacheHits = await _cacheService.SearchNearbyStoreIdsAsync(latitude, longitude, radiusMeters, ct);
+            if (cacheHits != null && cacheHits.Count > 0)
+            {
+                var hitIds = cacheHits.Select(h => h.StoreId).ToList();
+                var distMap = cacheHits.ToDictionary(h => h.StoreId, h => h.DistanceMeters);
+
+                var queryCached = _context.Stores
+                    .Include(s => s.Category)
+                    .Include(s => s.Reviews)
+                    .AsNoTracking()
+                    .Where(s => hitIds.Contains(s.Id));
+
+                if (!string.IsNullOrWhiteSpace(categorySlug))
+                {
+                    queryCached = queryCached.Where(s => s.Category.Slug.ToLower() == categorySlug.ToLower());
+                }
+
+                var cachedStores = await queryCached.ToListAsync(ct);
+                var cachedResults = cachedStores.Select(s => new NearbyStoreResult
+                {
+                    Store = s,
+                    DistanceMeters = distMap.TryGetValue(s.Id, out var d) ? d : GeoUtils.DistanceMeters(latitude, longitude, s.Location.Y, s.Location.X)
+                }).OrderBy(r => r.DistanceMeters).ToList();
+
+                return cachedResults;
+            }
+        }
+
+        // 2. Second Tier: Fallback to PostGIS Spatial Index & Haversine Geodesic Engine
         var query = _context.Stores
             .Include(s => s.Category)
             .Include(s => s.Reviews)
