@@ -8,7 +8,14 @@ public record StoreReviewDto(
     int RatingQuality,
     int RatingOverall,
     string Comment,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    int RatingAtmosphere = 5,
+    bool IsFlaggedAsSpam = false,
+    double SpamConfidence = 0.0,
+    string? SpamReason = null,
+    string SentimentService = "Neutral",
+    string SentimentQuality = "Neutral",
+    string SentimentAtmosphere = "Neutral"
 );
 
 public record CreateStoreReviewRequest(
@@ -16,7 +23,14 @@ public record CreateStoreReviewRequest(
     int RatingService,
     int RatingQuality,
     int RatingOverall,
-    string Comment
+    string Comment,
+    int RatingAtmosphere = 5
+);
+
+public record SentimentBreakdownDto(
+    int Positive,
+    int Neutral,
+    int Negative
 );
 
 public record StoreRatingSummaryDto(
@@ -25,5 +39,7 @@ public record StoreRatingSummaryDto(
     double AverageService,
     double AverageQuality,
     int TotalReviews,
-    List<StoreReviewDto> RecentReviews
+    List<StoreReviewDto> RecentReviews,
+    double AverageAtmosphere = 5.0,
+    SentimentBreakdownDto? SentimentBreakdown = null
 );

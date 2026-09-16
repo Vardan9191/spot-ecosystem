@@ -73,9 +73,19 @@ public class SpotDbContext : DbContext
             b.Property(r => r.UserId).HasColumnName("user_id").IsRequired();
             b.Property(r => r.RatingService).HasColumnName("rating_service").IsRequired();
             b.Property(r => r.RatingQuality).HasColumnName("rating_quality").IsRequired();
+            b.Property(r => r.RatingAtmosphere).HasColumnName("rating_atmosphere").HasDefaultValue(5);
             b.Property(r => r.RatingOverall).HasColumnName("rating_overall").IsRequired();
             b.Property(r => r.Comment).HasColumnName("comment").HasDefaultValue("");
             b.Property(r => r.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            b.Property(r => r.IsFlaggedAsSpam).HasColumnName("is_flagged_as_spam").HasDefaultValue(false);
+            b.Property(r => r.SpamConfidence).HasColumnName("spam_confidence").HasDefaultValue(0.0);
+            b.Property(r => r.SpamReason).HasColumnName("spam_reason");
+            b.Property(r => r.SentimentService).HasColumnName("sentiment_service").HasDefaultValue("Neutral");
+            b.Property(r => r.SentimentQuality).HasColumnName("sentiment_quality").HasDefaultValue("Neutral");
+            b.Property(r => r.SentimentAtmosphere).HasColumnName("sentiment_atmosphere").HasDefaultValue("Neutral");
+            b.Property(r => r.AuthorIpAddress).HasColumnName("author_ip_address");
+
+            b.HasIndex(r => r.IsFlaggedAsSpam);
 
             b.HasOne(r => r.Store)
                 .WithMany(s => s.Reviews)

@@ -3,6 +3,7 @@ using Spot.Infrastructure.Persistence;
 using Spot.Infrastructure.Repositories;
 using Spot.Infrastructure.Storage;
 using Spot.Infrastructure.Cache;
+using Spot.Infrastructure.Services;
 using Spot.Api.Hubs;
 using StackExchange.Redis;
 
@@ -57,6 +58,8 @@ builder.Services.AddSingleton<ISpatialCacheService>(sp =>
     }
     return new RedisSpatialCacheService(redis, logger);
 });
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IReviewFraudDetector, ReviewFraudDetector>();
 builder.Services.AddScoped<IStoreRepository, StoreRepository>();
 builder.Services.AddScoped<ITaskListRepository, TaskListRepository>();
 builder.Services.AddScoped<IStoreReviewRepository, StoreReviewRepository>();

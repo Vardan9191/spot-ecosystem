@@ -29,10 +29,20 @@ CREATE TABLE IF NOT EXISTS store_reviews (
     user_id UUID NOT NULL,
     rating_service INT NOT NULL CHECK (rating_service BETWEEN 1 AND 5),
     rating_quality INT NOT NULL CHECK (rating_quality BETWEEN 1 AND 5),
+    rating_atmosphere INT NOT NULL DEFAULT 5 CHECK (rating_atmosphere BETWEEN 1 AND 5),
     rating_overall INT NOT NULL CHECK (rating_overall BETWEEN 1 AND 5),
     comment TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_flagged_as_spam BOOLEAN NOT NULL DEFAULT FALSE,
+    spam_confidence DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    spam_reason TEXT,
+    sentiment_service TEXT NOT NULL DEFAULT 'Neutral',
+    sentiment_quality TEXT NOT NULL DEFAULT 'Neutral',
+    sentiment_atmosphere TEXT NOT NULL DEFAULT 'Neutral',
+    author_ip_address TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_store_reviews_spam ON store_reviews(is_flagged_as_spam);
 
 -- 4. Task Lists Table (Geofenced user shopping / to-do lists)
 CREATE TABLE IF NOT EXISTS task_lists (
