@@ -1,0 +1,129 @@
+services:
+  # 1. PostgreSQL 16 with PostGIS 3.4
+  spot-postgres:
+    image: postgis/postgis:16-3.4
+    container_name: spot-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-spot_db}
+      POSTGRES_USER: ${POSTGRES_USER:-spot_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-SpotSuperSecretPostGIS2026!}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command: >
+      postgres
+      -c shared_buffers=2GB
+      -c effective_cache_size=6GB
+      -c work_mem=64MB
+      -c maintenance_work_mem=512MB
+      -c random_page_cost=1.1
+      -c max_connections=200
+    volumes:
+      - spot_postgres_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432" # Bound locally for security
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-spot_admin} -d ${POSTGRES_DB:-spot_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # 2. Redis 7 Alpine In-Memory Geospatial Cache
+  spot-redis:
+    image: redis:7-alpine
+    container_name: spot-redis
+    restart: always
+    command: >
+      redis-server
+      --save 60 1
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-SpotSuperRedisPassword2026!}
+      --maxmemory 2gb
+      --maxmemory-policy volatile-lru
+    volumes:
+      - spot_redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379" # Bound locally for security
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-SpotSuperRedisPassword2026!}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - spot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # 3. Spot .NET 10 Web API & SignalR Streaming Backend
+  spot-api:
+    build:
+      context: ../backend
+      dockerfile: src/Api/Dockerfile
+    container_name: spot-api
+    restart: always
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__SpotDb=Host=spot-postgres;Port=5432;Database=${POSTGRES_DB:-spot_db};Username=${POSTGRES_USER:-spot_admin};Password=${POSTGRES_PASSWORD:-SpotSuperSecretPostGIS2026!};
+      - ConnectionStrings__Redis=spot-redis:6379,password=${REDIS_PASSWORD:-SpotSuperRedisPassword2026!},abortConnect=false
+      - Gemini__ApiKey=${GEMINI_API_KEY:-}
+      - Storage__Provider=Local
+      - Storage__UploadPath=/app/storage
+    volumes:
+      - spot_media_data:/app/storage
+    depends_on:
+      spot-postgres:
+        condition: service_healthy
+      spot-redis:
+        condition: service_healthy
+    networks:
+      - spot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # 4. Nginx Reverse Proxy (SSL, WebSockets, Merchant Web Portal)
+  spot-nginx:
+    image: nginx:alpine
+    container_name: spot-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../web/merchant-dashboard:/usr/share/nginx/html/merchant-dashboard:ro
+      - spot_media_data:/usr/share/nginx/html/media:ro
+    depends_on:
+      - spot-api
+    networks:
+      - spot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+networks:
+  spot-network:
+    driver: bridge
+
+volumes:
+  spot_postgres_data:
+    driver: local
+  spot_redis_data:
+    driver: local
+  spot_media_data:
+    driver: local
