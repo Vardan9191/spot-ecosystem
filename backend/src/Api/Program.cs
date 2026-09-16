@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Spot.Infrastructure.Persistence;
 using Spot.Infrastructure.Repositories;
+using Spot.Infrastructure.Storage;
 using Spot.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,6 +37,8 @@ builder.Services.AddDbContext<SpotDbContext>(options =>
 builder.Services.AddScoped<IStoreRepository, StoreRepository>();
 builder.Services.AddScoped<ITaskListRepository, TaskListRepository>();
 builder.Services.AddScoped<IStoreReviewRepository, StoreReviewRepository>();
+builder.Services.AddScoped<IStoreStoryRepository, StoreStoryRepository>();
+builder.Services.AddSingleton<IMediaStorageService, LocalStorageService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -74,6 +77,7 @@ if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 }
 
 app.UseCors();
+app.UseStaticFiles();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<LocationHub>("/hubs/location");

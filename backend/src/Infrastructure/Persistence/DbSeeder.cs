@@ -124,6 +124,59 @@ public static class DbSeeder
         taskList.Items.Add(new TaskItem { Title = "Artisan Sourdough Loaf", IsCompleted = false, Quantity = "1 loaf" });
 
         await context.TaskLists.AddAsync(taskList);
+
+        // Store Stories (Merchant Media & Shorts)
+        var storyCoffee = new StoreStory
+        {
+            Id = Guid.Parse("12121212-1212-1212-1212-121212121212"),
+            StoreId = StoreCoffeeId,
+            Title = "Fresh Single-Origin Ethiopian Roast Just Dropped! ☕",
+            Description = "Flash Happy Hour: Enjoy 20% off all pour-overs when you walk in before 11 AM.",
+            MediaUrl = "https://assets.spot.dev/media/cortado_ethiopian.mp4",
+            ThumbnailUrl = "https://assets.spot.dev/media/cortado_thumb.jpg",
+            PromoBadge = "20% OFF IN-STORE",
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-30),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(12)
+        };
+
+        var storyGrocery = new StoreStory
+        {
+            Id = Guid.Parse("34343434-3434-3434-3434-343434343434"),
+            StoreId = StoreGroceryId,
+            Title = "Local Farm-to-Table Hass Avocados & Sourdough 🥑",
+            Description = "Geofenced exclusive: Scan your Spot app at checkout for a complimentary cold-pressed juice with orders over $25.",
+            MediaUrl = "https://assets.spot.dev/media/grocer_avocado.mp4",
+            ThumbnailUrl = "https://assets.spot.dev/media/grocer_thumb.jpg",
+            PromoBadge = "FREE GIFT WITH PURCHASE",
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-15),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(8)
+        };
+
+        var storyExpired = new StoreStory
+        {
+            Id = Guid.Parse("56565656-5656-5656-5656-565656565656"),
+            StoreId = StoreCoffeeId,
+            Title = "Yesterday's Flash Morning Deal",
+            Description = "This deal has already expired.",
+            MediaUrl = "https://assets.spot.dev/media/old_deal.mp4",
+            PromoBadge = "EXPIRED",
+            CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(-2) // EXPIRED
+        };
+
+        var storyFar = new StoreStory
+        {
+            Id = Guid.Parse("78787878-7878-7878-7878-787878787878"),
+            StoreId = StoreFarId,
+            Title = "Sunset Pilates on the Hudson Pier 🧘",
+            Description = "Exclusive session at our riverfront studio.",
+            MediaUrl = "https://assets.spot.dev/media/sunset_yoga.mp4",
+            PromoBadge = "FIRST CLASS FREE",
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-10),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(14)
+        };
+
+        await context.StoreStories.AddRangeAsync(storyCoffee, storyGrocery, storyExpired, storyFar);
         await context.SaveChangesAsync();
     }
 }

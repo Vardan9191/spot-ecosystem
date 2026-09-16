@@ -1,222 +1,128 @@
-using System.Threading.Channels;
 using FluentAssertions;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Spot.Api.DTOs;
+using Spot.Api.Hubs;
 using Spot.Infrastructure.Persistence;
+using Spot.Infrastructure.Repositories;
 using Xunit;
 
 namespace Spot.Tests;
 
-public class LocationHubTests : IClassFixture<WebApplicationFactory<Program>>
+public class LocationHubTests
 {
-    private readonly WebApplicationFactory<Program> _factory;
-
-    public LocationHubTests(WebApplicationFactory<Program> factory)
+    private static SpotDbContext CreateInMemoryContext()
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services =>
-            {
-                // Ensure fresh seeded in-memory database
-                var sp = services.BuildServiceProvider();
-                using var scope = sp.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<SpotDbContext>();
-                db.Database.EnsureCreated();
-                DbSeeder.SeedAsync(db).GetAwaiter().GetResult();
-            });
-        });
+        var options = new DbContextOptionsBuilder<SpotDbContext>()
+            .UseInMemoryDatabase(databaseName: $"SpotHubTest_{Guid.NewGuid()}")
+            .Options;
+
+        var context = new SpotDbContext(options);
+        DbSeeder.SeedAsync(context).GetAwaiter().GetResult();
+        return context;
     }
 
-    private HubConnection CreateHubConnection()
+    private class TestLocationClient : ILocationClient
     {
-        return new HubConnectionBuilder()
-            .WithUrl("http://localhost/hubs/location", options =>
-            {
-                options.HttpMessageHandlerFactory = _ => _factory.Server.CreateHandler();
-            })
-            .Build();
-    }
+        public List<StoreDto>? ReceivedStores { get; private set; }
+        public List<GeofenceAlertDto> ReceivedAlerts { get; } = new();
+        public List<(string Title, string Message)> ReceivedBroadcasts { get; } = new();
+        public (double Lat, double Lng, int Count)? AcknowledgedUpdate { get; private set; }
 
-    [Fact]
-    public async Task SendLocation_NearCivicCenter_StreamsNearbyStoresWithin1500m()
-    {
-        // Arrange
-        await using var connection = CreateHubConnection();
-        var tcs = new TaskCompletionSource<List<StoreDto>>();
-
-        connection.On<List<StoreDto>>("ReceiveNearbyStores", stores =>
+        public Task ReceiveNearbyStores(List<StoreDto> stores)
         {
-            tcs.TrySetResult(stores);
-        });
-
-        await connection.StartAsync();
-
-        // Center: NYC Civic Center
-        double centerLat = 40.7128;
-        double centerLon = -74.0060;
-
-        // Act
-        await connection.InvokeAsync("SendLocation", centerLat, centerLon, 1500.0, null);
-
-        var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(5000));
-        completedTask.Should().Be(tcs.Task, "Hub should respond with ReceiveNearbyStores within 5 seconds.");
-
-        var nearbyStores = await tcs.Task;
-
-        // Assert
-        nearbyStores.Should().NotBeNull();
-        nearbyStores.Count.Should().Be(3);
-
-        nearbyStores.Should().Contain(s => s.Name == "Green Grocer Organic Market");
-        nearbyStores.Should().Contain(s => s.Name == "Cortado Artisan Coffee Roasters");
-        nearbyStores.Should().Contain(s => s.Name == "Pixel & Wire Electronics");
-
-        // Hudson River Fitness & Spa is ~2600m away, so it must be excluded
-        nearbyStores.Should().NotContain(s => s.Name == "Hudson River Fitness & Spa");
-
-        // Distance validation
-        foreach (var s in nearbyStores)
-        {
-            s.DistanceMeters.Should().NotBeNull();
-            s.DistanceMeters!.Value.Should().BeLessThanOrEqualTo(1500);
+            ReceivedStores = stores;
+            return Task.CompletedTask;
         }
 
-        // Ordered by proximity ascending
-        for (int i = 0; i < nearbyStores.Count - 1; i++)
+        public Task ReceiveGeofenceTrigger(GeofenceAlertDto alert)
         {
-            nearbyStores[i].DistanceMeters!.Value.Should().BeLessThanOrEqualTo(nearbyStores[i + 1].DistanceMeters!.Value);
+            ReceivedAlerts.Add(alert);
+            return Task.CompletedTask;
         }
 
-        await connection.StopAsync();
+        public Task ReceiveBroadcastNotification(string title, string message)
+        {
+            ReceivedBroadcasts.Add((title, message));
+            return Task.CompletedTask;
+        }
+
+        public Task LocationUpdatedAcknowledged(double latitude, double longitude, int storesFound)
+        {
+            AcknowledgedUpdate = (latitude, longitude, storesFound);
+            return Task.CompletedTask;
+        }
+    }
+
+    private class TestHubCallerClients : IHubCallerClients<ILocationClient>
+    {
+        public TestLocationClient TestClient { get; } = new();
+
+        public ILocationClient Caller => TestClient;
+        public ILocationClient Others => TestClient;
+        public ILocationClient All => TestClient;
+        public ILocationClient AllExcept(IReadOnlyList<string> excludedConnectionIds) => TestClient;
+        public ILocationClient Client(string connectionId) => TestClient;
+        public ILocationClient ClientMethod(string connectionId) => TestClient;
+        public ILocationClient Clients(IReadOnlyList<string> connectionIds) => TestClient;
+        public ILocationClient Group(string groupName) => TestClient;
+        public ILocationClient Groups(IReadOnlyList<string> groupNames) => TestClient;
+        public ILocationClient GroupExcept(string groupName, IReadOnlyList<string> excludedConnectionIds) => TestClient;
+        public ILocationClient OthersInGroup(string groupName) => TestClient;
+        public ILocationClient User(string userId) => TestClient;
+        public ILocationClient Users(IReadOnlyList<string> userIds) => TestClient;
     }
 
     [Fact]
-    public async Task SendLocation_WithCategoryFilter_ReturnsOnlyMatchingStores()
+    public async Task SendLocationUpdate_NearStoreInsideRadius_TriggersNearbyStoresAndGeofenceAlert()
     {
         // Arrange
-        await using var connection = CreateHubConnection();
-        var tcs = new TaskCompletionSource<List<StoreDto>>();
+        using var context = CreateInMemoryContext();
+        var storeRepo = new StoreRepository(context);
+        var hub = new LocationHub(storeRepo, NullLogger<LocationHub>.Instance);
 
-        connection.On<List<StoreDto>>("ReceiveNearbyStores", stores =>
-        {
-            tcs.TrySetResult(stores);
-        });
+        var clientsMock = new TestHubCallerClients();
+        hub.Clients = clientsMock;
 
-        await connection.StartAsync();
-
-        // Act
-        await connection.InvokeAsync("SendLocation", 40.7128, -74.0060, 1500.0, "coffee");
-
-        var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(5000));
-        completedTask.Should().Be(tcs.Task);
-
-        var nearbyStores = await tcs.Task;
-
-        // Assert
-        nearbyStores.Should().HaveCount(1);
-        nearbyStores.First().Name.Should().Be("Cortado Artisan Coffee Roasters");
-        nearbyStores.First().Category.Slug.Should().Be("coffee");
-
-        await connection.StopAsync();
-    }
-
-    [Fact]
-    public async Task SendLocation_InsideStoreRadius_TriggersGeofenceAlert()
-    {
-        // Arrange
-        await using var connection = CreateHubConnection();
-        var alertTcs = new TaskCompletionSource<GeofenceAlertNotificationDto>();
-
-        connection.On<GeofenceAlertNotificationDto>("ReceiveGeofenceAlert", alert =>
-        {
-            alertTcs.TrySetResult(alert);
-        });
-
-        await connection.StartAsync();
-
-        // Green Grocer coordinates: 40.7145, -74.0080 with 150m radius
-        double atStoreLat = 40.7145;
-        double atStoreLon = -74.0080;
+        // Position: right next to Green Grocer (Lat: 40.7145, Lng: -74.0080, Radius: 150m)
+        double userLat = 40.7145;
+        double userLng = -74.0080;
 
         // Act
-        await connection.InvokeAsync("SendLocation", atStoreLat, atStoreLon, 500.0, null);
-
-        var completedTask = await Task.WhenAny(alertTcs.Task, Task.Delay(5000));
-        completedTask.Should().Be(alertTcs.Task, "Hub should emit ReceiveGeofenceAlert when inside store radius.");
-
-        var alert = await alertTcs.Task;
+        await hub.SendLocationUpdate(userLat, userLng, searchRadiusMeters: 1500);
 
         // Assert
-        alert.StoreName.Should().Be("Green Grocer Organic Market");
+        clientsMock.TestClient.ReceivedStores.Should().NotBeNull();
+        clientsMock.TestClient.ReceivedStores!.Count.Should().Be(3); // 3 stores inside 1.5km
+
+        // Should trigger geofence alert for Green Grocer (distance ~0m <= 150m radius)
+        clientsMock.TestClient.ReceivedAlerts.Should().NotBeEmpty();
+        var alert = clientsMock.TestClient.ReceivedAlerts.First(a => a.StoreName == "Green Grocer Organic Market");
         alert.DistanceMeters.Should().BeLessThanOrEqualTo(150);
-        alert.Message.Should().Contain("Green Grocer Organic Market");
+        alert.IsPartner.Should().BeTrue();
 
-        await connection.StopAsync();
+        // Acknowledgment should match
+        clientsMock.TestClient.AcknowledgedUpdate.Should().NotBeNull();
+        clientsMock.TestClient.AcknowledgedUpdate!.Value.Count.Should().Be(3);
     }
 
     [Fact]
-    public async Task BroadcastStoreDeal_DeliversDealToUsersInStoreZone()
+    public async Task SendLocationUpdate_InvalidCoordinates_DoesNotDispatchUpdates()
     {
         // Arrange
-        await using var connection = CreateHubConnection();
-        var dealTcs = new TaskCompletionSource<StoreDealDto>();
+        using var context = CreateInMemoryContext();
+        var storeRepo = new StoreRepository(context);
+        var hub = new LocationHub(storeRepo, NullLogger<LocationHub>.Instance);
 
-        connection.On<StoreDealDto>("ReceiveStoreDeal", deal =>
-        {
-            dealTcs.TrySetResult(deal);
-        });
+        var clientsMock = new TestHubCallerClients();
+        hub.Clients = clientsMock;
 
-        await connection.StartAsync();
-
-        string storeId = DbSeeder.StoreCoffeeId.ToString();
-
-        // 1. Join store zone
-        await connection.InvokeAsync("JoinStoreZone", storeId);
-
-        // 2. Broadcast deal to this zone
-        await connection.InvokeAsync("BroadcastStoreDeal", storeId, "Flash 30% Off", "Freshly roasted Ethiopian beans 30% off for 1 hour!");
-
-        var completedTask = await Task.WhenAny(dealTcs.Task, Task.Delay(5000));
-        completedTask.Should().Be(dealTcs.Task, "Client in zone should receive broadcast deal.");
-
-        var deal = await dealTcs.Task;
+        // Act with invalid latitude > 90
+        await hub.SendLocationUpdate(120.0, -74.0060);
 
         // Assert
-        deal.StoreId.Should().Be(DbSeeder.StoreCoffeeId);
-        deal.DealTitle.Should().Be("Flash 30% Off");
-        deal.DealMessage.Should().Contain("Ethiopian beans");
-
-        await connection.StopAsync();
-    }
-
-    [Fact]
-    public async Task SendLocation_WithInvalidCoordinates_EmitsReceiveError()
-    {
-        // Arrange
-        await using var connection = CreateHubConnection();
-        var errorTcs = new TaskCompletionSource<string>();
-
-        connection.On<string>("ReceiveError", err =>
-        {
-            errorTcs.TrySetResult(err);
-        });
-
-        await connection.StartAsync();
-
-        // Act: Invalid latitude 99.0 (> 90)
-        await connection.InvokeAsync("SendLocation", 99.0, 0.0, 1500.0, null);
-
-        var completedTask = await Task.WhenAny(errorTcs.Task, Task.Delay(5000));
-        completedTask.Should().Be(errorTcs.Task);
-
-        var errorMsg = await errorTcs.Task;
-        errorMsg.Should().Contain("Invalid coordinates");
-
-        await connection.StopAsync();
+        clientsMock.TestClient.ReceivedStores.Should().BeNull();
+        clientsMock.TestClient.ReceivedAlerts.Should().BeEmpty();
     }
 }

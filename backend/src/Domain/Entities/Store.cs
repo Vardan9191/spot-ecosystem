@@ -20,4 +20,5 @@ public class Store
     public bool IsPartner { get; set; } = false;
 
     public ICollection<StoreReview> Reviews { get; set; } = new List<StoreReview>();
+    public ICollection<StoreStory> Stories { get; set; } = new List<StoreStory>();
 }

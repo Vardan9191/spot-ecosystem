@@ -14,6 +14,7 @@ public class SpotDbContext : DbContext
     public DbSet<StoreReview> StoreReviews => Set<StoreReview>();
     public DbSet<TaskList> TaskLists => Set<TaskList>();
     public DbSet<TaskItem> TaskItems => Set<TaskItem>();
+    public DbSet<StoreStory> StoreStories => Set<StoreStory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -122,6 +123,30 @@ public class SpotDbContext : DbContext
             b.HasOne(i => i.TaskList)
                 .WithMany(t => t.Items)
                 .HasForeignKey(i => i.ListId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Store Stories Configuration (24h Merchant Media & Shorts)
+        modelBuilder.Entity<StoreStory>(b =>
+        {
+            b.ToTable("store_stories");
+            b.HasKey(s => s.Id);
+            b.Property(s => s.Id).HasColumnName("id");
+            b.Property(s => s.StoreId).HasColumnName("store_id").IsRequired();
+            b.Property(s => s.Title).HasColumnName("title").IsRequired();
+            b.Property(s => s.Description).HasColumnName("description").HasDefaultValue("");
+            b.Property(s => s.MediaUrl).HasColumnName("media_url").IsRequired();
+            b.Property(s => s.ThumbnailUrl).HasColumnName("thumbnail_url");
+            b.Property(s => s.PromoBadge).HasColumnName("promo_badge").HasDefaultValue("");
+            b.Property(s => s.ViewCount).HasColumnName("view_count").HasDefaultValue(0);
+            b.Property(s => s.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            b.Property(s => s.ExpiresAt).HasColumnName("expires_at").IsRequired();
+
+            b.HasIndex(s => new { s.StoreId, s.ExpiresAt });
+
+            b.HasOne(s => s.Store)
+                .WithMany(st => st.Stories)
+                .HasForeignKey(s => s.StoreId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

@@ -54,6 +54,20 @@ CREATE TABLE IF NOT EXISTS task_items (
     quantity TEXT NOT NULL DEFAULT '1'
 );
 
+-- 6. Store Stories Table (24h Merchant Media & Shorts)
+CREATE TABLE IF NOT EXISTS store_stories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    media_url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    promo_badge TEXT NOT NULL DEFAULT '',
+    view_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
 -- ==============================================================================
 -- SPATIAL (GIST) & RELATIONAL INDEXES
 -- ==============================================================================
@@ -69,6 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_stores_category_id ON stores(category_id);
 CREATE INDEX IF NOT EXISTS idx_store_reviews_store_id ON store_reviews(store_id);
 CREATE INDEX IF NOT EXISTS idx_task_lists_user_id ON task_lists(user_id);
 CREATE INDEX IF NOT EXISTS idx_task_items_list_id ON task_items(list_id);
+CREATE INDEX IF NOT EXISTS idx_store_stories_store_expires ON store_stories(store_id, expires_at);
 
 -- ==============================================================================
 -- SEED FIXTURES (Standard test anchors for hyper-local spatial validation)
@@ -141,5 +156,19 @@ BEGIN
         (list_grocery_id, 'Almond Milk (Unsweetened)', TRUE, '2 cartons'),
         (list_grocery_id, 'Artisan Sourdough Loaf', FALSE, '1 loaf')
     ON CONFLICT DO NOTHING;
+
+    -- Seed Merchant Stories
+    INSERT INTO store_stories (id, store_id, title, description, media_url, thumbnail_url, promo_badge, expires_at) VALUES
+        ('12121212-1212-1212-1212-121212121212', store_coffee_id, 
+         'Fresh Single-Origin Ethiopian Roast Just Dropped! ☕',
+         'Flash Happy Hour: Enjoy 20% off all pour-overs when you walk in before 11 AM.',
+         'https://assets.spot.dev/media/cortado_ethiopian.mp4', 'https://assets.spot.dev/media/cortado_thumb.jpg',
+         '20% OFF IN-STORE', NOW() + INTERVAL '12 hours'),
+        ('34343434-3434-3434-3434-343434343434', store_grocery_id,
+         'Local Farm-to-Table Hass Avocados & Sourdough 🥑',
+         'Geofenced exclusive: Scan your Spot app at checkout for a complimentary cold-pressed juice with orders over $25.',
+         'https://assets.spot.dev/media/grocer_avocado.mp4', 'https://assets.spot.dev/media/grocer_thumb.jpg',
+         'FREE GIFT WITH PURCHASE', NOW() + INTERVAL '8 hours')
+    ON CONFLICT (id) DO NOTHING;
 
 END $$;
