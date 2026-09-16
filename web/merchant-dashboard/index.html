@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spot Merchant Hub - Geofence & Foot-Traffic Management</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">📍</div>
+      <div>
+        <h1>Spot Merchant Hub</h1>
+        <span>Hyper-Local Geofence & Media Ecosystem</span>
+      </div>
+    </div>
+    <div class="merchant-badge">
+      ✓ Verified Partner: Cortado Artisan Coffee
+    </div>
+  </header>
+
+  <main>
+    <!-- KPI Row -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Today's Foot Traffic</span>
+          <span>👥</span>
+        </div>
+        <div class="kpi-value">924</div>
+        <div class="kpi-delta positive">↑ 14.8% vs last week</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Active Geofence Triggers</span>
+          <span>⚡</span>
+        </div>
+        <div class="kpi-value">5,964</div>
+        <div class="kpi-delta positive">↑ 22.1% this week</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Deal Conversion Rate</span>
+          <span>🎯</span>
+        </div>
+        <div class="kpi-value">28.4%</div>
+        <div class="kpi-delta positive">↑ 4.2% lift</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>Average Store Rating</span>
+          <span>⭐</span>
+        </div>
+        <div class="kpi-value">4.9 / 5</div>
+        <div class="kpi-delta neutral">Based on 32 reviews</div>
+      </div>
+    </div>
+
+    <!-- Main Content Layout -->
+    <div class="content-grid">
+      <!-- Left Column: Interactive Geofence Builder -->
+      <div class="panel">
+        <div class="panel-title">
+          <span>Interactive Geofence Builder</span>
+          <span id="radiusDisplay" style="color: var(--accent); font-size: 1rem;">150m</span>
+        </div>
+
+        <div class="geofence-map-container">
+          <canvas id="mapCanvas"></canvas>
+          <div class="map-overlay-controls">
+            <div>📍 <strong>Store:</strong> 45 Franklin St, NY</div>
+            <div style="margin-top: 4px; color: var(--text-secondary);">Center: (40.7180, -74.0020)</div>
+          </div>
+        </div>
+
+        <div class="geofence-controls">
+          <div class="control-row">
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">Trigger Boundary Radius</span>
+            <div class="preset-pills">
+              <button class="pill-btn" data-radius="50">50m Micro</button>
+              <button class="pill-btn" data-radius="100">100m</button>
+              <button class="pill-btn active" data-radius="150">150m</button>
+              <button class="pill-btn" data-radius="300">300m</button>
+              <button class="pill-btn" data-radius="500">500m</button>
+            </div>
+          </div>
+
+          <div class="slider-container">
+            <input type="range" id="radiusSlider" min="50" max="1000" step="25" value="150">
+          </div>
+
+          <div class="control-row">
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">
+              Estimated population coverage within geofence: <strong style="color: white;">~4,200 pedestrians/hr</strong>
+            </span>
+            <button class="btn-primary" id="saveGeofenceBtn">Save Geofence</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Traffic Analytics & Active Flash Deals -->
+      <div class="panel">
+        <div class="panel-title">
+          <span>Hourly Foot-Traffic Trends</span>
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">Peak: 12 PM - 1 PM</span>
+        </div>
+
+        <div class="traffic-chart">
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height: 25%;"></div>
+            <span class="chart-label">8A</span>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height: 45%;"></div>
+            <span class="chart-label">10A</span>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height: 95%;"></div>
+            <span class="chart-label">12P</span>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height: 70%;"></div>
+            <span class="chart-label">2P</span>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height: 85%;"></div>
+            <span class="chart-label">5P</span>
+          </div>
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height: 90%;"></div>
+            <span class="chart-label">6P</span>
+          </div>
+        </div>
+
+        <div class="panel-title" style="margin-top: 1.5rem;">
+          <span>Active Geofence Campaigns & Shorts</span>
+          <a href="#" style="font-size: 0.8rem; color: var(--accent); text-decoration: none;">+ New Short</a>
+        </div>
+
+        <div class="campaign-item">
+          <div class="campaign-info">
+            <h4>Flash Happy Hour: 20% Off Pour-Overs ☕</h4>
+            <span class="campaign-tag">20% OFF IN-STORE</span>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-weight: 700; color: var(--success);">342 Claims</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">1,280 Views</div>
+          </div>
+        </div>
+
+        <div class="campaign-item" style="border: none;">
+          <div class="campaign-info">
+            <h4>Fresh Single-Origin Ethiopian Roast 🎬</h4>
+            <span class="campaign-tag">VIDEO SHORT</span>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-weight: 700; color: var(--success);">189 Claims</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">840 Views</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
