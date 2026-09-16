@@ -25,3 +25,19 @@ public record CreateStoryRequest(
     string PromoBadge,
     int DurationHours = 24
 );
+
+public record PresignedUploadRequest(
+    string FileName,
+    string ContentType,
+    long FileSizeBytes,
+    int? VideoDurationSeconds = null,
+    string? AspectRatio = "9:16"
+);
+
+public record PresignedUploadResponse(
+    string UploadUrl,
+    string FinalMediaUrl,
+    string StorageKey,
+    DateTimeOffset ExpiresAt,
+    Dictionary<string, string> RequiredHeaders
+);

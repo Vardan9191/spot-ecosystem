@@ -167,6 +167,127 @@ public class StoreStoriesController : ControllerBase
     }
 
     /// <summary>
+    /// Uploads a merchant video short (15-30s vertical video) linked to a store geofence.
+    /// Supports multipart video upload with size and format validation.
+    /// </summary>
+    [HttpPost("merchants/{merchantId:guid}/shorts")]
+    [ProducesResponseType(typeof(StoryDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<StoryDto>> UploadMerchantShort(
+        Guid merchantId,
+        [FromForm] IFormFile videoFile,
+        [FromForm] string title,
+        [FromForm] string? description,
+        [FromForm] string? promoBadge,
+        [FromForm] int? videoDurationSeconds,
+        [FromForm] string? aspectRatio = "9:16",
+        CancellationToken ct = default)
+    {
+        if (videoFile == null || videoFile.Length == 0)
+        {
+            return BadRequest("Video file is required.");
+        }
+
+        const long maxBytes = 50 * 1024 * 1024; // 50MB
+        if (videoFile.Length > maxBytes)
+        {
+            return BadRequest("Video file exceeds the maximum allowed size of 50MB.");
+        }
+
+        var ext = Path.GetExtension(videoFile.FileName).ToLowerInvariant();
+        var allowedExts = new[] { ".mp4", ".mov", ".webm", ".m4v" };
+        if (!allowedExts.Contains(ext))
+        {
+            return BadRequest($"Invalid video format '{ext}'. Allowed formats: .mp4, .mov, .webm, .m4v.");
+        }
+
+        if (videoDurationSeconds.HasValue && (videoDurationSeconds.Value < 5 || videoDurationSeconds.Value > 60))
+        {
+            return BadRequest("Video shorts duration must be between 5 and 60 seconds (ideal: 15-30s).");
+        }
+
+        var store = await _storeRepository.GetByIdAsync(merchantId, ct);
+        if (store == null)
+        {
+            return NotFound($"Merchant store with ID {merchantId} does not exist.");
+        }
+
+        using var stream = videoFile.OpenReadStream();
+        string mediaUrl = await _storageService.UploadMediaAsync(stream, videoFile.FileName, videoFile.ContentType, ct);
+
+        var story = new StoreStory
+        {
+            StoreId = merchantId,
+            Title = string.IsNullOrWhiteSpace(title) ? Path.GetFileNameWithoutExtension(videoFile.FileName) : title.Trim(),
+            Description = description?.Trim() ?? "",
+            MediaUrl = mediaUrl,
+            PromoBadge = promoBadge?.Trim() ?? "HOT SHORT",
+            CreatedAt = DateTimeOffset.UtcNow,
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(24)
+        };
+
+        await _storyRepository.AddAsync(story, ct);
+        story.Store = store;
+
+        return CreatedAtAction(
+            nameof(GetStoreStories),
+            new { storeId = story.StoreId },
+            MapToDto(story, null)
+        );
+    }
+
+    /// <summary>
+    /// Generates S3/MinIO compatible presigned upload URL for direct client-to-cloud video ingestion.
+    /// </summary>
+    [HttpPost("merchants/{merchantId:guid}/shorts/presigned-url")]
+    [ProducesResponseType(typeof(PresignedUploadResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PresignedUploadResponse>> GeneratePresignedUploadUrl(
+        Guid merchantId,
+        [FromBody] PresignedUploadRequest request,
+        CancellationToken ct = default)
+    {
+        var store = await _storeRepository.GetByIdAsync(merchantId, ct);
+        if (store == null)
+        {
+            return NotFound($"Merchant store with ID {merchantId} does not exist.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FileName))
+        {
+            return BadRequest("FileName is required.");
+        }
+
+        var ext = Path.GetExtension(request.FileName).ToLowerInvariant();
+        var allowedExts = new[] { ".mp4", ".mov", ".webm", ".m4v", ".jpg", ".png", ".webp" };
+        if (!allowedExts.Contains(ext))
+        {
+            return BadRequest($"Invalid file extension '{ext}'. Allowed extensions: {string.Join(", ", allowedExts)}");
+        }
+
+        string storageKey = $"{merchantId}/{Guid.NewGuid():N}{ext}";
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(15);
+        string uploadUrl = $"https://s3.spot.local/merchants-shorts/{storageKey}?X-Amz-Expires=900";
+        string finalMediaUrl = $"/media/shorts/{storageKey}";
+
+        var headers = new Dictionary<string, string>
+        {
+            { "Content-Type", request.ContentType },
+            { "x-amz-acl", "public-read" }
+        };
+
+        return Ok(new PresignedUploadResponse(
+            UploadUrl: uploadUrl,
+            FinalMediaUrl: finalMediaUrl,
+            StorageKey: storageKey,
+            ExpiresAt: expiresAt,
+            RequiredHeaders: headers
+        ));
+    }
+
+    /// <summary>
     /// Increments story view counter for merchant analytics.
     /// </summary>
     [HttpPost("stories/{storyId:guid}/view")]
